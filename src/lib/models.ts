@@ -13,6 +13,11 @@ export interface BaseContent {
   updatedAt: string;
   status: Status;
   sourceReference: string;
+  body?: string;
+  publicationStatus?:
+    "draft" | "in_review" | "approved" | "published" | "archived";
+  createdBy?: string;
+  assetDownload?: string;
 }
 export interface Article extends BaseContent {
   kind: "knowledge";
