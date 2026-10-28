@@ -55,3 +55,11 @@ Repository `montyyyyyy/playbook` und Domain `playbook.mesta.digital` sind bereit
 
 Neon (PostgreSQL) ist als Datenbank festgelegt. Im nächsten Sprint Schema, Migrationen und serverseitigen Datenzugriff anbinden; die Verbindungsdaten ausschließlich als serverseitige Umgebungsvariablen verwalten. Die Auth-Lösung ist noch festzulegen. Einladungen, serverseitige Sitzungsprüfung, Rollen und Zugriffskontrollen sowie privaten Dateispeicher ergänzen. Erst nach Prüfung der Zugriffskontrollen echte Daten verwenden. Import, Anonymisierung und redaktionelle Freigabe als getrennte, autorisierte Schritte implementieren.
 
+
+## Neon- und Vercel-Anbindung
+
+Die Neon-CLI und Vercel-CLI sind lokal authentifiziert. Das Repository ist mit dem bestehenden Vercel-Projekt `playbook` in `dirks-projects-128f9cc0` verknüpft; `.vercel/` bleibt Git-ignoriert. Das Framework-Preset ist Next.js.
+
+Neon: Projekt `playbook` (`young-wave-31898083`), Branch `production`, Datenbank `neondb`. Eine gepoolte Verbindung ist in `.env.local` und als sensible `DATABASE_URL` für Vercel Production hinterlegt. Ein lesender Verbindungstest war erfolgreich. Zugangsdaten werden nicht versioniert. Preview und Development in Vercel sind noch nicht konfiguriert. Neue Vercel-Variablen gelten für nachfolgende Deployments.
+
+Die Anwendung nutzt weiterhin lokale Demo-Inhalte; es wurden noch keine Tabellen, Migrationen oder Datenbankabfragen in die Anwendung eingebaut. Authentifizierung und Autorisierung der Webanwendung sind unabhängig von der CLI-Anmeldung weiterhin offen.
