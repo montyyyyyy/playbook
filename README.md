@@ -28,7 +28,7 @@ Anschließend http://localhost:3000 öffnen. Für die Produktionsvorschau `npm r
 - `src/app`: App-Router-Routen, Metadaten, semantische CSS-Tokens, Loading/Error/404.
 - `src/components`: gemeinsame Shell, Bibliothek, Detailansichten, Codeblock und Administration.
 - `src/lib/models.ts`: diskriminierte Content-Typen für Article, Template, Workshop, Architecture und UseCase.
-- `src/lib/content.ts`: Demo-Daten, Modulbeschreibungen, Locale und einfache Zugriffsfunktionen; späterer Ansatzpunkt für serverseitiges Laden aus Supabase.
+- `src/lib/content.ts`: Demo-Daten, Modulbeschreibungen, Locale und einfache Zugriffsfunktionen; späterer Ansatzpunkt für serverseitiges Laden aus Neon (PostgreSQL).
 - `public/downloads`: drei tatsächlich vorhandene, synthetische Demo-Dateien (CSV, Markdown, JavaScript). Keine PDFs.
 
 Die Oberfläche ist deutsch; Dokumentensprache und Datums-Locale sind explizit festgelegt. Stabile Slugs sind unabhängig von Anzeigetexten. Eine spätere Übersetzung kann die UI-Texte in ein Wörterbuch extrahieren, ohne Content-Identitäten zu ändern.
@@ -49,8 +49,9 @@ Dies ist eine **ungeschützte Demo**, nicht für vertrauliche Inhalte freigegebe
 
 ## Vercel
 
-Repository `montyyyyyy/playbook` in Vercel importieren, Framework Next.js und Projektwurzel verwenden. Build: `npm run build`, Ausgabe automatisch. Node.js 24 wählen. Den gewünschten Feature-Stand zunächst reviewen und mergen oder gezielt als Preview deployen. Domain `playbook.mesta.digital` im Vercel-Projekt hinzufügen und die von Vercel angezeigten DNS-Einträge beim DNS-Anbieter setzen. Es wurde kein Deployment ausgelöst.
+Repository `montyyyyyy/playbook` und Domain `playbook.mesta.digital` sind bereits mit Vercel verbunden. Production-Branch ist `main`; ein Push auf diesen Branch löst das konfigurierte Deployment aus. Framework: Next.js, Projektwurzel: Repository-Wurzel, Build: `npm run build`, Ausgabe automatisch. Der aktuelle Sprint benötigt keine Datenbankverbindung oder Secrets.
 
 ## Sprint 02
 
-Supabase Auth mit Einladungen, serverseitige Sitzungsprüfung, Rollen und Row Level Security einführen. Danach Inhalte und Assets mit privaten Storage-Policies anbinden. Erst nach Prüfung der Zugriffskontrollen echte Daten verwenden. Import, Anonymisierung und redaktionelle Freigabe als getrennte, autorisierte Schritte implementieren.
+Neon (PostgreSQL) ist als Datenbank festgelegt. Im nächsten Sprint Schema, Migrationen und serverseitigen Datenzugriff anbinden; die Verbindungsdaten ausschließlich als serverseitige Umgebungsvariablen verwalten. Die Auth-Lösung ist noch festzulegen. Einladungen, serverseitige Sitzungsprüfung, Rollen und Zugriffskontrollen sowie privaten Dateispeicher ergänzen. Erst nach Prüfung der Zugriffskontrollen echte Daten verwenden. Import, Anonymisierung und redaktionelle Freigabe als getrennte, autorisierte Schritte implementieren.
+

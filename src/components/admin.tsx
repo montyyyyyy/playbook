@@ -184,8 +184,8 @@ export function Admin() {
             <Users size={34} />
             <h2>Ein sicherer Raum für dein Team.</h2>
             <p>
-              Einladungen, Rollen und Benutzerverwaltung folgen mit Supabase
-              Auth.
+              Einladungen, Rollen und Benutzerverwaltung folgen mit der
+              Authentifizierung.
               <br />
               Aktuell existieren keine Benutzerkonten.
             </p>
@@ -227,3 +227,4 @@ export function Settings() {
     </div>
   );
 }
+
