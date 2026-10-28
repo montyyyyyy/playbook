@@ -1694,3 +1694,152 @@ figcaption {
     visibility: visible;
   }
 }
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 35px 20px;
+  background: radial-gradient(
+    ellipse at top,
+    color-mix(in srgb, var(--sand) 12%, var(--bg)),
+    var(--bg) 65%
+  );
+}
+.auth-brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 24px;
+  margin-bottom: 35px;
+}
+.auth-brand svg {
+  color: var(--sand);
+}
+.auth-card {
+  width: 100%;
+  max-width: 440px;
+  padding: 32px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  margin-bottom: 25px;
+}
+.auth-card h1 {
+  font-size: 28px;
+  margin: 12px 0;
+}
+.auth-card p {
+  font-size: 12px;
+}
+.auth-card > a {
+  font-size: 12px;
+  color: var(--accent);
+}
+.auth-footer {
+  font-size: 10px;
+  margin-top: 24px;
+}
+.auth-card form,
+.editor-form {
+  display: flex;
+  flex-direction: column;
+  gap: 17px;
+}
+.auth-card label,
+.settings-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.auth-card input,
+.settings-panel input,
+.settings-panel select,
+.settings-panel textarea,
+.one-time-link {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 5px;
+  color: var(--text);
+  padding: 10px 12px;
+  font: inherit;
+}
+.auth-card small {
+  font-size: 10px;
+}
+.form-message {
+  margin-top: 15px;
+  overflow-wrap: anywhere;
+}
+.action-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 15px;
+  align-items: center;
+}
+.action-row input {
+  flex: 2;
+  min-width: 180px;
+}
+.action-row select {
+  flex: 1;
+  min-width: 110px;
+}
+.action-row .button {
+  white-space: nowrap;
+}
+.one-time-link {
+  max-width: 100%;
+  font-size: 11px;
+}
+.callout > div {
+  min-width: 0;
+  width: 100%;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.editor-link {
+  padding-bottom: 0;
+}
+.article-body p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.tabs button[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.settings-panel > label {
+  margin-bottom: 15px;
+}
+@media (max-width: 600px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .auth-card {
+    padding: 25px;
+  }
+  .top-actions .text-button {
+    font-size: 9px;
+  }
+  .theme-control select {
+    max-width: 57px;
+  }
+  .action-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

@@ -1,230 +1,361 @@
 "use client";
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import {
-  Files,
-  Clock3,
-  ShieldCheck,
-  Users,
-  Info,
-  UploadCloud,
-} from "lucide-react";
-import { contents, hrefFor } from "@/lib/content";
+import { useRouter } from "next/navigation";
+import type { Profile } from "@/lib/server/session";
+import type { Content } from "@/lib/models";
 import { Breadcrumbs, ThemeSettings } from "./shell";
-import { StatusBadge } from "./library";
-export function Admin() {
-  const [tab, setTab] = useState("Übersicht");
-  const tabs = ["Übersicht", "Import Queue", "Artikelverwaltung", "Benutzer"];
-  const queue = [
-    { file: "Demo_Tracking_Konzept.md", status: "Importiert" },
-    { file: "Demo_Journey_Notizen.md", status: "Anonymisierung erforderlich" },
-    { file: "Demo_Architektur.md", status: "Technische Prüfung" },
-    { file: "Demo_Checkliste.csv", status: "Zur Freigabe" },
-    { file: "Demo_Web_Channel.md", status: "Veröffentlicht" },
-  ];
+export async function api(path: string, body: unknown, method = "POST") {
+  const response = await fetch(path, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error ?? "Vorgang fehlgeschlagen.");
+  return data;
+}
+export function OneTimeLink({
+  link,
+  clear,
+}: {
+  link: string;
+  clear: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="callout">
+      <div>
+        <strong>Persönlicher Link – nur jetzt sichtbar</strong>
+        <p>
+          Vertraulich an die vorgesehene Person weitergeben. Der Link ist nur
+          einmal verwendbar.
+        </p>
+        <input
+          className="one-time-link"
+          aria-label="Persönlicher Link"
+          readOnly
+          value={link}
+        />
+        <div className="action-row">
+          <button
+            className="button secondary"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(link);
+                setCopied(true);
+              } catch {
+                setCopied(false);
+              }
+            }}
+          >
+            {copied ? "Kopiert" : "Link kopieren"}
+          </button>
+          <button className="button secondary" onClick={clear}>
+            Schließen
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+export function Admin({
+  users,
+  invitations,
+  items,
+}: {
+  users: Profile[];
+  invitations: {
+    id: string;
+    email: string;
+    intended_role: string;
+    status: string;
+    expires_at: string;
+  }[];
+  items: Content[];
+}) {
+  const router = useRouter();
+  const [tab, setTab] = useState("Inhalte");
+  const [message, setMessage] = useState("");
+  const [link, setLink] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function run(action: () => Promise<void>) {
+    setBusy(true);
+    setMessage("");
+    try {
+      await action();
+      router.refresh();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Vorgang fehlgeschlagen.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function invite(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    await run(async () => {
+      const r = await api("/api/admin/invitations", {
+        email: data.get("email"),
+        role: data.get("role"),
+      });
+      setLink(r.link ?? "");
+      setMessage(
+        r.delivery === "email"
+          ? "Einladung versendet."
+          : "Einladung erstellt. Bitte den persönlichen Link weitergeben.",
+      );
+      form.reset();
+    });
+  }
   return (
     <div className="page">
       <Breadcrumbs items={[{ label: "Admin" }]} />
       <div className="page-title">
-        <span className="eyebrow">WORKSPACE VERWALTEN</span>
-        <h1>Administration</h1>
-        <p>Inhalte im Blick. Qualität im Mittelpunkt.</p>
+        <span className="eyebrow">ADMINISTRATION</span>
+        <h1>Workspace verwalten</h1>
+        <p>Inhalte, Zugänge und Freigaben.</p>
       </div>
-      <div className="callout">
-        <Info size={19} />
-        <div>
-          <strong>Frontend-Vorschau · keine Zugriffssicherung</strong>
-          <p>
-            Diese Ansicht zeigt ausschließlich synthetische Daten. Import,
-            Benutzerverwaltung und Freigaben sind noch nicht aktiv. Nicht für
-            vertrauliche Inhalte freigegeben.
-          </p>
-        </div>
-      </div>
-      <div className="tabs" role="tablist" aria-label="Admin-Bereiche">
-        {tabs.map((t) => (
-          <button
-            key={t}
-            role="tab"
-            aria-selected={tab === t}
-            aria-controls="admin-panel"
-            id={`tab-${tabs.indexOf(t)}`}
-            onClick={() => setTab(t)}
-          >
+      <div className="tabs">
+        {["Inhalte", "Benutzer", "Einladungen"].map((t) => (
+          <button key={t} aria-pressed={tab === t} onClick={() => setTab(t)}>
             {t}
           </button>
         ))}
       </div>
-      <div
-        role="tabpanel"
-        id="admin-panel"
-        aria-labelledby={`tab-${tabs.indexOf(tab)}`}
-      >
-        {tab === "Übersicht" ? (
-          <>
-            <div className="stats-grid">
-              {[
-                {
-                  label: "Inhalte gesamt",
-                  value: contents.length,
-                  icon: Files,
-                },
-                {
-                  label: "Prüfung erforderlich",
-                  value: contents.filter(
-                    (c) => c.status === "Prüfung erforderlich",
-                  ).length,
-                  icon: Clock3,
-                },
-                {
-                  label: "Aktuelle Inhalte",
-                  value: contents.filter((c) => c.status === "Aktuell").length,
-                  icon: ShieldCheck,
-                },
-              ].map(({ label, value, icon: Icon }) => (
-                <div className="stat" key={label}>
-                  <Icon size={20} />
-                  <strong>{value}</strong>
-                  <span>{label}</span>
-                </div>
-              ))}
-            </div>
-            <h2>Review Status</h2>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Inhalt</th>
-                    <th>Status</th>
-                    <th>Aktualisiert</th>
+      <p role="status">{message}</p>
+      {link && <OneTimeLink link={link} clear={() => setLink("")} />}
+      {tab === "Inhalte" ? (
+        <>
+          <Link className="button" href="/edit">
+            Inhalt erstellen
+          </Link>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Inhalt</th>
+                  <th>Veröffentlichung</th>
+                  <th>Technischer Stand</th>
+                  <th>Aktion</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.title}</td>
+                    <td>{item.publicationStatus}</td>
+                    <td>{item.status}</td>
+                    <td>
+                      <Link href={`/edit?id=${item.id}`}>
+                        Bearbeiten / Freigeben
+                      </Link>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {contents
-                    .filter((c) => c.status !== "Aktuell")
-                    .map((c) => (
-                      <tr key={c.id}>
-                        <td>
-                          <Link href={hrefFor(c)}>{c.title}</Link>
-                        </td>
-                        <td>
-                          <StatusBadge status={c.status} />
-                        </td>
-                        <td>{c.updatedAt}</td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        ) : tab === "Import Queue" ? (
-          <>
-            <div className="import-placeholder">
-              <UploadCloud size={36} />
-              <h2>Import wird in einem späteren Sprint verfügbar</h2>
-              <p>Es werden keine Dateien angenommen oder verarbeitet.</p>
-            </div>
-            <h2>Beispielhafte Import Queue</h2>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Demo-Datei</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {queue.map((q) => (
-                    <tr key={q.file}>
-                      <td>{q.file}</td>
-                      <td>
-                        <span className="queue-status">{q.status}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        ) : tab === "Artikelverwaltung" ? (
-          <>
-            <p className="muted">
-              Lesende Vorschau. Bearbeiten und Freigeben folgen mit
-              serverseitiger Autorisierung.
-            </p>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Artikel</th>
-                    <th>Technologie</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {contents
-                    .filter((c) => c.kind === "knowledge")
-                    .map((c) => (
-                      <tr key={c.id}>
-                        <td>
-                          <Link href={hrefFor(c)}>{c.title}</Link>
-                        </td>
-                        <td>{c.technology}</td>
-                        <td>
-                          <StatusBadge status={c.status} />
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        ) : (
-          <div className="empty-state">
-            <Users size={34} />
-            <h2>Ein sicherer Raum für dein Team.</h2>
-            <p>
-              Einladungen, Rollen und Benutzerverwaltung folgen mit der
-              Authentifizierung.
-              <br />
-              Aktuell existieren keine Benutzerkonten.
-            </p>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+        </>
+      ) : tab === "Benutzer" ? (
+        <div className="user-list">
+          {users.map((user) => (
+            <form
+              className="settings-panel"
+              key={user.id}
+              onSubmit={(e) => {
+                e.preventDefault();
+                const data = new FormData(e.currentTarget);
+                void run(async () => {
+                  await api(
+                    "/api/admin/users",
+                    {
+                      id: user.id,
+                      role: data.get("role"),
+                      status: data.get("status"),
+                    },
+                    "PATCH",
+                  );
+                  setMessage(
+                    "Benutzer aktualisiert. Bestehende Sessions werden bei Rollenänderung oder Deaktivierung widerrufen.",
+                  );
+                });
+              }}
+            >
+              <strong>{user.display_name}</strong>
+              <div className="action-row">
+                <select
+                  name="role"
+                  aria-label={`Rolle für ${user.display_name}`}
+                  defaultValue={user.role}
+                >
+                  <option value="viewer">Viewer</option>
+                  <option value="editor">Editor</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <select
+                  name="status"
+                  aria-label={`Kontostatus für ${user.display_name}`}
+                  defaultValue={user.account_status}
+                >
+                  <option value="active">Aktiv</option>
+                  <option value="disabled">Gesperrt</option>
+                </select>
+                <button className="button secondary" disabled={busy}>
+                  Speichern
+                </button>
+                <button
+                  type="button"
+                  className="button secondary"
+                  disabled={busy}
+                  onClick={() =>
+                    run(async () => {
+                      const r = await api("/api/admin/reset", { id: user.id });
+                      setLink(r.link);
+                    })
+                  }
+                >
+                  Reset-Link erstellen
+                </button>
+              </div>
+            </form>
+          ))}
+        </div>
+      ) : (
+        <>
+          <form className="settings-panel" onSubmit={invite}>
+            <h2>Person einladen</h2>
+            <div className="action-row">
+              <input
+                name="email"
+                type="email"
+                placeholder="E-Mail-Adresse"
+                aria-label="E-Mail-Adresse"
+                required
+                maxLength={254}
+              />
+              <select
+                name="role"
+                aria-label="Rolle der Einladung"
+                defaultValue="viewer"
+              >
+                <option value="viewer">Viewer</option>
+                <option value="editor">Editor</option>
+                <option value="admin">Admin</option>
+              </select>
+              <button className="button" disabled={busy}>
+                Einladung erstellen
+              </button>
+            </div>
+            <p>
+              48 Stunden gültig. Ohne konfigurierten Mailversand erhältst du
+              einen persönlichen Link zum Weitergeben.
+            </p>
+          </form>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>E-Mail</th>
+                  <th>Rolle</th>
+                  <th>Status</th>
+                  <th>Aktion</th>
+                </tr>
+              </thead>
+              <tbody>
+                {invitations.map((i) => (
+                  <tr key={i.id}>
+                    <td>{i.email}</td>
+                    <td>{i.intended_role}</td>
+                    <td>
+                      {i.status === "pending" &&
+                      new Date(i.expires_at) < new Date()
+                        ? "expired"
+                        : i.status}
+                    </td>
+                    <td>
+                      {i.status === "pending" && (
+                        <button
+                          className="text-button"
+                          disabled={busy}
+                          onClick={() =>
+                            run(async () => {
+                              await api(
+                                "/api/admin/invitations",
+                                { id: i.id },
+                                "DELETE",
+                              );
+                              setMessage("Einladung widerrufen.");
+                            })
+                          }
+                        >
+                          Widerrufen
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }
-export function Settings() {
+export function Settings({ profile }: { profile: Profile }) {
+  const router = useRouter();
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
   return (
     <div className="page">
       <Breadcrumbs items={[{ label: "Settings" }]} />
       <div className="page-title">
-        <h1>Settings</h1>
-        <p>Dein Workspace, deine Ansicht.</p>
+        <h1>Dein Konto</h1>
+        <p>
+          Angemeldet als {profile.display_name} · Rolle: {profile.role}
+        </p>
       </div>
+      <form
+        className="settings-panel"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          try {
+            const data = new FormData(e.currentTarget);
+            await api(
+              "/api/profile",
+              { display_name: data.get("display_name") },
+              "PATCH",
+            );
+            setMessage("Anzeigename gespeichert.");
+            router.refresh();
+          } catch (e) {
+            setMessage(e instanceof Error ? e.message : "Fehler");
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <label>
+          Anzeigename
+          <input
+            name="display_name"
+            defaultValue={profile.display_name}
+            required
+            maxLength={100}
+          />
+        </label>
+        <button className="button" disabled={busy}>
+          Speichern
+        </button>
+        <p role="status">{message}</p>
+      </form>
       <section className="settings-panel">
         <h2>Erscheinungsbild</h2>
-        <p>
-          Wähle ein Farbschema. Deine Auswahl wird in diesem Browser
-          gespeichert.
-        </p>
         <ThemeSettings />
-      </section>
-      <section className="settings-panel">
-        <h2>Sprache</h2>
-        <p>
-          Deutsch · Weitere Sprachen sind für spätere Ausbaustufen vorgesehen.
-        </p>
-      </section>
-      <section className="settings-panel">
-        <h2>Über diesen Workspace</h2>
-        <p>
-          CX Playbook · Sprint 01 · Lokale Demo-Daten. Authentifizierung und
-          private Inhalte sind noch nicht verfügbar.
-        </p>
       </section>
     </div>
   );
 }
-
