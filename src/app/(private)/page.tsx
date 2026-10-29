@@ -1,3 +1,5 @@
+import { listContents } from "@/lib/server/content";
+import { requireUser } from "@/lib/server/session";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -9,7 +11,7 @@ import {
   ArrowUpRight,
   Clock3,
 } from "lucide-react";
-import { contents, hrefFor } from "@/lib/content";
+import { hrefFor } from "@/lib/content";
 import { ContentCard } from "@/components/library";
 const modules = [
   {
@@ -41,13 +43,16 @@ const modules = [
     count: "2 Architekturen",
   },
 ];
-export default function Home() {
+export default async function Home() {
+  const contents = await listContents();
+  const { profile } = await requireUser();
   return (
     <div className="page dashboard">
       <div className="welcome-line">
         <span>DEIN WORKSPACE</span>
         <span>
-          Willkommen zurück, Dirk <span className="sand">✦</span>
+          Willkommen zurück, {profile.display_name}{" "}
+          <span className="sand">✦</span>
         </span>
       </div>
       <section className="hero">
@@ -113,7 +118,7 @@ export default function Home() {
         <span className="hero-caption">PERSPEKTIVEN VERBINDEN.</span>
       </section>
       <div className="module-grid">
-        {modules.map(({ slug, name, description, icon: Icon, count }) => (
+        {modules.map(({ slug, name, description, icon: Icon }) => (
           <Link className="module-card" href={`/${slug}`} key={slug}>
             <div>
               <Icon size={25} />
@@ -121,7 +126,9 @@ export default function Home() {
             </div>
             <h2>{name}</h2>
             <p>{description}</p>
-            <small>{count}</small>
+            <small>
+              {contents.filter((c) => c.kind === slug).length} Inhalte
+            </small>
           </Link>
         ))}
       </div>
@@ -139,7 +146,7 @@ export default function Home() {
         </div>
         <p className="section-note">Beispielauswahl für deinen Workspace</p>
         <div className="card-grid">
-          {[contents[0], contents[9], contents[7]].map((item) => (
+          {contents.slice(0, 3).map((item) => (
             <ContentCard key={item.id} item={item} visual />
           ))}
         </div>
@@ -150,7 +157,7 @@ export default function Home() {
             <h2>Für dich empfohlen</h2>
             <Lightbulb size={20} />
           </div>
-          {[contents[4], contents[11]].map((item) => (
+          {contents.slice(3, 5).map((item) => (
             <Link className="recommended" key={item.id} href={hrefFor(item)}>
               <span className="recommend-icon">
                 {item.kind === "templates" ? (

@@ -1,37 +1,98 @@
 # CX Playbook
 
-Sprint 01: responsive Knowledge- und Enablement-Plattform mit Next.js App Router, TypeScript Strict Mode, Tailwind CSS 4, Lucide und next-themes.
+Private Knowledge- und Enablement-Plattform. Next.js 16 App Router, TypeScript, Tailwind CSS, Neon PostgreSQL und Better Auth. Die Sprint-01-Oberfläche bleibt erhalten; Sprint 02 ergänzt serverseitige Authentifizierung und Datenbankberechtigungen.
+
+## Aktueller Stand
+
+- Der Production-404 wurde durch ein neues Next.js-Deployment des Sprint-01-Stands behoben; die Domain lieferte danach HTTP 200.
+- Sprint 02 liegt auf `feature/sprint-02-security` und wurde **nicht** veröffentlicht. Production zeigt weiterhin die ungeschützte synthetische Sprint-01-Demo.
+- Backend-Entwicklung und Sicherheitstests verwenden den isolierten Neon-Branch `sprint-02-development` im Projekt `playbook`. Production-Datenbank und DNS wurden für Sprint 02 nicht verändert.
+- Einladungen und Passwort-Resets funktionieren standardmäßig über persönliche, einmalig angezeigte Links. Es ist kein E-Mail-Anbieter erforderlich. SMTP ist optional vorbereitet und nicht konfiguriert oder extern getestet.
 
 ## Lokal starten
 
-Node.js 22 oder neuer verwenden (geprüft mit Node.js 24).
+Node.js 24 verwenden. `.env.local` ist eingerichtet und Git-ignoriert.
 
 ```sh
 npm ci
 npm run dev
 ```
 
-Anschließend http://localhost:3000 öffnen. Für die Produktionsvorschau `npm run build` und `npm start` ausführen. Es werden keine Umgebungsvariablen benötigt.
+Öffne **http://localhost:3000** (derselbe Origin wie `BETTER_AUTH_URL`). Die 127.0.0.1-Adresse ist kein zusätzlicher vertrauenswürdiger Login-Origin.
 
-## Umfang
+Für den ersten Administrator ist ein einmaliger Link für die vereinbarte E-Mail-Adresse in der lokalen, ignorierten Datei `.bootstrap-admin-link.txt` hinterlegt. Öffne den dortigen Link, wähle Anzeigename und eigenes Passwort (mindestens 12 Zeichen). Die Einladung läuft nach 48 Stunden ab. Im Chat und Repository stehen keine Passwörter oder Token.
 
-- Dashboard, Knowledge Library, Templates, Workshops, Architecture, Use Cases, Settings und lesende Admin-Vorschau.
-- 13 vollständig synthetische Inhalte mit Detailseiten, Metadaten, Kategorien und Tags.
-- Globale Suche (Ctrl/Cmd+K), modulbezogene kombinierbare Filter, Karten-/Listenansicht und Empty States.
-- Light/Dark/System mit persistierter Auswahl und früher Theme-Initialisierung durch next-themes.
-- Inhaltsverzeichnisse, Demo-Code mit Hervorhebung und Clipboard-Funktion, Tabellen, Statushinweise, lokale Downloads und Workshop-Timelines.
-- Mobile Navigation mit Fokusbegrenzung, Escape-Schließen, Skip-Link und sichtbaren Focus-States.
-- Lokale Vektorillustrationen, keine extern geladenen Bilder oder Schriften.
+## Neuinstallation / Migrationen
 
-## Struktur
+1. Einen getrennten Neon-Branch und eine PostgreSQL-Datenbank verwenden. Die Migrationen erwarten eine leere Anwendungsdatenbank.
+2. `.env.example` nach `.env.local` kopieren und `MIGRATION_DATABASE_URL` auf die direkte **Owner-Verbindung des Zielbranches** mit `sslmode=verify-full` setzen. `BETTER_AUTH_URL` passend zum Ziel festlegen.
+3. `npm run db:provision`: erstellt zufällige Zugangsdaten für `playbook_app` und `playbook_auth`, einen Auth-Secret und speichert sie ausschließlich lokal. Bestehende Rollen werden nicht still überschrieben.
+4. `npm run db:migrate`: führt versionierte SQL-Migrationen mit Lock und Prüfsummen aus. Kein automatisches Migrieren beim Serverstart oder Build.
+5. Optional ausschließlich in Entwicklung: `PLAYBOOK_ENVIRONMENT=development` setzen und `npm run db:seed -- --confirm-development` ausführen. Der Befehl verweigert Preview/Production sowie nicht-lokale Auth-Origins. Der wiederholbare Seed fügt 13 synthetische Inhalte und kleine private Demo-Dateien ein. Bestehende Inhalte werden nicht überschrieben. Der Operator nimmt während dieser expliziten Transaktion eine gesperrte Tabelle ohne Mutationstrigger in Betrieb; außerhalb des Seeds bleiben die Trigger aktiv.
+6. `npm run admin:bootstrap -- deine-admin-adresse@example.org`: erzeugt eine 48-Stunden-Einladung, nur solange kein Administrator existiert. Kein öffentlicher Bootstrap-Endpunkt und keine automatische Erhöhung des ersten Signups.
+7. Link aus `.bootstrap-admin-link.txt` öffnen und eigenes Passwort setzen. Danach wird die Einladung atomar verbraucht.
 
-- `src/app`: App-Router-Routen, Metadaten, semantische CSS-Tokens, Loading/Error/404.
-- `src/components`: gemeinsame Shell, Bibliothek, Detailansichten, Codeblock und Administration.
-- `src/lib/models.ts`: diskriminierte Content-Typen für Article, Template, Workshop, Architecture und UseCase.
-- `src/lib/content.ts`: Demo-Daten, Modulbeschreibungen, Locale und einfache Zugriffsfunktionen; späterer Ansatzpunkt für serverseitiges Laden aus Neon (PostgreSQL).
-- `public/downloads`: drei tatsächlich vorhandene, synthetische Demo-Dateien (CSV, Markdown, JavaScript). Keine PDFs.
+Der lokale Notfallweg für den einzigen Administrator lautet `npm run admin:recover -- deine-admin-adresse@example.org`. Er setzt eine Owner-Verbindung voraus, prüft ein bereits vorhandenes aktives Admin-Konto und legt einen 30-Minuten-Link in `.recovery-admin-link.txt` ab. Er erstellt keine Benutzer und ändert keine Rollen. Beide Linkdateien nach Gebrauch entfernen.
 
-Die Oberfläche ist deutsch; Dokumentensprache und Datums-Locale sind explizit festgelegt. Stabile Slugs sind unabhängig von Anzeigetexten. Eine spätere Übersetzung kann die UI-Texte in ein Wörterbuch extrahieren, ohne Content-Identitäten zu ändern.
+## Datenmodell und Sicherheitsarchitektur
+
+`db/migrations/001_foundation.sql` bis `006_revoke_invitations.sql` enthalten Auth-Tabellen, `profiles`, `content_items`, `content_assets`, `invitations`, `audit_events` und Policies. Migrationen sind unveränderlich und werden in `schema_migrations` protokolliert.
+
+- `playbook_auth` hat ausschließlich Zugriff auf Better-Auth-Identitätstabellen und eng begrenzte Funktionen für Einladungseinlösung, Statusprüfung und Rate Limits. Kein Inhaltszugriff.
+- `playbook_app` ist weder Owner noch Superuser/BYPASSRLS. Die Runtime lehnt Owner-Verbindungen ab. Jeder Datenzugriff setzt innerhalb einer Transaktion ausschließlich den von Better Auth verifizierten Sitzungstoken. Eine SQL-Funktion ermittelt daraus den Benutzer über eine reale, nicht abgelaufene Datenbanksitzung und prüft den aktuellen Kontostatus. Ein frei gesetzter Benutzer-ID-Parameter genügt nicht.
+- RLS schützt alle Anwendungs- und Auth-Tabellen. Viewer lesen nur veröffentlichte Inhalte; Editoren zusätzlich eigene Entwürfe/Reviews und dürfen nur diese bearbeiten. Admins verwalten Benutzer und Veröffentlichungen. Spaltenrechte, Policies und Trigger verhindern Rollen- und Veröffentlichungseskalation auch bei direktem SQL über die eingeschränkte Runtime-Rolle.
+- Privilegierte SQL-Funktionen liegen in `private`, besitzen einen leeren `search_path`, verwenden vollqualifizierte Tabellen und sind nicht für PUBLIC ausführbar.
+- Benutzerrollen stammen ausschließlich aus `profiles`. Profiländerungen akzeptieren nur `display_name`. Admins können nicht den letzten aktiven Administrator deaktivieren oder herabstufen.
+- Better Auth verwaltet echte Passwort-Hashes und datenbankgestützte Cookie-Sessions (12 Stunden, keine Cookie-Session-Caches). HTTPS verwendet Secure/HttpOnly-Cookies. Registrierung ist in Better Auth deaktiviert und der API-Endpunkt zusätzlich nicht freigegeben. Es gibt keine Supabase-Komponenten und keinen öffentlichen Datenbank-REST-Endpunkt.
+- Rollenänderung und Deaktivierung löschen bestehende Sitzungen. RLS prüft den aktuellen Kontostatus bei jeder Datenoperation zusätzlich. Bereits ausgelieferte/geladene Inhalte lassen sich nicht nachträglich vom Gerät zurückholen; neue Anfragen werden gesperrt.
+- `proxy.ts` sorgt für frühe Login-Weiterleitung und private Cache-Header. Es ist **nicht** die Autorisierung: jede private Seite, Metadatenabfrage und API prüft Sitzung/Berechtigungen erneut. Private Seiten werden dynamisch gerendert; Demo-Inhalte sind nicht in öffentlichen JavaScript-Bundles oder statischen HTML-Dateien enthalten.
+- Mutationen prüfen Origin/CSRF, Schema und Rollen. Redirects erlauben nur interne Ziele. Kein dynamisches HTML aus Inhaltsdaten.
+- Auth-Rate-Limits liegen in PostgreSQL; die eigenen Admin-/Einladungs-/Recovery-Limits sind atomare SQL-Zähler. Ohne vertrauenswürdig ermittelte Client-IP verwendet Better Auth lokal einen gemeinsamen Endpoint-Bucket (5 Loginversuche/Minute). Das schützt vor unbegrenzten Versuchen, kann aber auch legitime parallele Logins drosseln. Verteilte Angriffe und per-IP-Edge-Schutz sind nicht zusätzlich konfiguriert.
+
+## Einladungen und Passwort-Reset ohne Mailanbieter
+
+Admins erstellen unter Admin → Einladungen einen persönlichen 48-Stunden-Link. Er erscheint nur einmal und wird selbst an die vorgesehene Person weitergegeben. In `invitations` liegt nur sein SHA-256-Hash. Die Einlösung prüft Ablauf und Status in einer gesperrten Transaktion, legt echte Better-Auth-Identität und Passwort-Hash an und verknüpft die administrativ festgelegte Rolle. Widerrufene und bereits verwendete Links sind ungültig.
+
+Unter Admin → Benutzer erzeugt „Reset-Link erstellen“ einen einmaligen 30-Minuten-Link. Der Passwortwechsel läuft über Better Auth und widerruft vorhandene Sitzungen. Der native Better-Auth-Verifikationsspeicher bleibt ausschließlich für den Auth-Dienst zugänglich. Token und Passwörter werden nicht in Audit-Events geschrieben. Links verwenden URL-Fragmente, damit die Geheimnisse nicht als GET-Query in Server-Logs stehen.
+
+Ohne SMTP weist `/forgot-password` neutral auf den Administrator hin und behauptet nicht, eine E-Mail versendet zu haben. Bei optionaler SMTP-Konfiguration versendet die Recovery-Route neutrale Rückmeldungen und native Better-Auth-Reset-Links. Die Annahme einer manuell weitergereichten Einladung bestätigt den Besitz dieses Links; die sichere Zustellung und richtige Empfängerzuordnung liegen beim Administrator. Kein unabhängiger E-Mail-Besitznachweis ohne Mailversand.
+
+## Private Dateien
+
+Kleine Dateien liegen in diesem Sprint als **private PostgreSQL-bytea-Daten** in `content_assets`, geschützt durch RLS. Es gibt keinen öffentlichen Bucket und keine Dateien unter `public/downloads`. Downloads laufen ausschließlich über authentifizierte Route Handler, mit `Content-Disposition: attachment`, `nosniff` und `no-store`. Die App generiert neutrale Dateinamen und speichert keine ursprünglichen Uploadnamen. Typ-/Größenprüfung, PDF-Signaturprüfung und Prüfung auf NUL-Bytes bei Text sind implementiert.
+
+Das ist bewusst kein externer Object-Storage-Bucket. Für große Dokumente folgt später ein privater Objektspeicher mit kurzlebigen Downloadfreigaben. Aktuelles App-Limit: 5 MB; Vercels Request-Limit kann Uploads bereits vorher begrenzen. Kein Virenscanner, keine PDF-Ingestion und keine realen Kundendokumente. JavaScript-Dateien werden nur als Download ausgeliefert, nicht ausgeführt.
+
+## Vercel-Konfiguration für Sprint 02
+
+Bestehendes Projekt: `playbook`, Team `dirks-projects-128f9cc0`, Framework **Next.js**, Node.js 24, Root `.`, Build `npm run build`, Output automatisch. Domain: `https://playbook.mesta.digital`.
+
+Vor einem **gesondert autorisierten** Deployment auf dem gewählten Zielbranch provisionieren und migrieren. Dann diese serverseitigen Variablen in der passenden Vercel-Umgebung setzen:
+
+| Variable                                                            | Wert                                                                         |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `PLAYBOOK_ENVIRONMENT`                                              | `production`, `preview` oder lokal `development`                             |
+| `DATABASE_URL`                                                      | Gepoolte Verbindung mit Rolle `playbook_app`                                 |
+| `AUTH_DATABASE_URL`                                                 | Gepoolte Verbindung mit Rolle `playbook_auth`                                |
+| `BETTER_AUTH_SECRET`                                                | Zufälliges Secret, mindestens 32 Zeichen; pro Umgebung getrennt              |
+| `BETTER_AUTH_URL`                                                   | Production: `https://playbook.mesta.digital`; lokal: `http://localhost:3000` |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `MAIL_FROM` | Optional, nur für echten Mailversand                                         |
+
+**Die früher in Vercel hinterlegte Owner-`DATABASE_URL` muss für Sprint 02 ersetzt werden.** `MIGRATION_DATABASE_URL` gehört niemals in die Vercel-Runtime. `.env.local` und lokale Links sind auch durch `.vercelignore` ausgeschlossen. Keine `NEXT_PUBLIC_`-Secrets. Preview braucht einen eigenen Neon-Branch, ein eigenes Secret und einen festen vertrauenswürdigen Origin; keine pauschale `*.vercel.app`-Freigabe. Auf Vercel erzwingt die Anwendung HTTPS, die exakte Production-Domain und eine von Production getrennte Preview-Auth-URL.
+
+Login: `/login`; Einladung: `/accept-invite`; Passwortwechsel: `/reset-password`. Kein OAuth-/PKCE-Callback notwendig, da E-Mail/Passwort und serverseitig geprüfte Einmal-Links verwendet werden. Production-Migration, neue Runtime-Variablen und Sprint-02-Deployment wurden noch nicht durchgeführt. Es gibt keine automatische Veröffentlichung beim Build.
+
+## Production-Runbook und Rollback
+
+Alle folgenden externen Schritte benötigen eine gesonderte Freigabe. Keine Secrets in Shell-Historie, Tickets oder Chat kopieren; Verbindungswerte werden direkt über Neon/Vercel CLI oder deren geschützte Oberflächen gesetzt.
+
+1. Das bestehende Sprint-01-Deployment und seine Deployment-ID als App-Rollback beibehalten. Unmittelbar vor der ersten Production-Migration zusätzlich einen Neon-Rollback-Branch vom unveränderten Production-Branch erstellen.
+2. Einen eigenen Neon-Preview-Branch erstellen, dort `db:provision` und `db:migrate`, aber niemals `db:seed`, ausführen. Preview erhält eigene Runtime-Zugänge, eigenes Auth-Secret, `PLAYBOOK_ENVIRONMENT=preview` und einen festen HTTPS-Origin.
+3. Den Feature-Branch pushen und das isolierte Preview prüfen: Login, Admin-Bootstrap, Viewer/Editor/Admin, direkte API-/Asset-Ablehnung ohne Sitzung sowie Logs. Keine Production-Variable für Preview freigeben.
+4. Für Production eine separate, Git-ignorierte `.env.production.local` mit `PLAYBOOK_ENVIRONMENT=production`, direkter Owner-`MIGRATION_DATABASE_URL`, den beiden gepoolten Runtime-URLs, Production-Auth-Secret und exakter Production-URL vorbereiten. Bei jedem Operator-Befehl `PLAYBOOK_ENV_FILE=.env.production.local` setzen; `.env.local` bleibt Development. Danach `npm run db:provision`, `npm run db:migrate` und `npm run production:preflight` ausführen. Der Preflight prüft Origin, Secret-Länge, gepoolte Runtime-/direkte Migration-Verbindungen, Rollenprivilegien, Migrationsprüfsummen und Abwesenheit der synthetischen Development-Fixtures.
+5. In Vercel Production nur `PLAYBOOK_ENVIRONMENT`, `DATABASE_URL`, `AUTH_DATABASE_URL`, `BETTER_AUTH_SECRET` und `BETTER_AUTH_URL` setzen. Die Owner-Verbindung bleibt lokal beim Operator. Danach über den vorgesehenen Production-Branch deployen, den ersten Admin per Operator-Skript einladen und die negativen Zugriffstests wiederholen.
+
+App-Rollback: Domain/Alias auf das erhaltene Sprint-01-Deployment zurücksetzen. Dieses Deployment liest keine Sprint-02-Datenbankdaten; die additiven Tabellen können zunächst unverändert bleiben. Das vermeidet Datenverlust. Ein Datenbank-Restore oder Umschalten auf den Rollback-Branch ist nur vor produktiven Benutzeränderungen oder nach gesonderter Datenprüfung zulässig, da spätere Einladungen, Konten und Inhalte sonst verloren gingen. Bereits angewendete Migrationen werden nicht durch ungeprüfte Down-Skripte rückgängig gemacht; nach produktiver Nutzung gilt grundsätzlich Fix-forward.
 
 ## Prüfungen
 
@@ -39,27 +100,27 @@ Die Oberfläche ist deutsch; Dokumentensprache und Datums-Locale sind explizit f
 npm run typecheck
 npm run lint
 npm run build
+npm run test:security
+npm run test:rls
+# Separat den Production Build lokal starten, dann:
+npm start
+npm run test:integration
 ```
 
-Sprint-Abnahme: alle drei Prüfungen erfolgreich. Ein temporärer Browser-Smoke-Test außerhalb des Repositorys prüfte System/Light/Dark inklusive Persistenz, globale Suche, Artikel-Navigation, tatsächlichen Clipboard-Inhalt, Filter/Empty State, Listenansicht, Download, Admin-Tabs, mobile Navigation und horizontale Überläufe. Keine JavaScript-Laufzeitfehler. Desktop Light/Dark und Mobile wurden visuell geprüft. Wichtige Routen und alle drei Downloads lieferten HTTP 200. Keine dauerhafte E2E-Infrastruktur.
+RLS-Tests prüfen mit der echten PostgreSQL-Rolle und rollenabhängigen Policies innerhalb einer zurückgerollten Transaktion. HTTP-Tests erzeugen kurzlebige synthetische Konten, prüfen echte Better-Auth-Logins und APIs und entfernen ihre Daten anschließend. Sie respektieren die aktiven Login-Limits und können deshalb eine Minute warten. Ausschließlich gegen die isolierte Entwicklungs-/Testdatenbank ausführen. Keinen Produktions-Testlauf starten.
 
-## Grenzen und Sicherheit
+Sprint-02-Abnahme: TypeScript, Lint und Production Build erfolgreich; 32 echte RLS-Tests, 23 HTTP-Integrationstests und 12 Redirect-Tests erfolgreich. Ein temporärer Browser-Test prüfte Login mit Rücksprungziel, Light/Dark, private Suche/Artikel, Admin-Oberfläche, Editor-Speichern, mobile Navigation ohne horizontalen Überlauf und Logout; keine JavaScript-Laufzeitfehler. Login in Light/Dark und mobile Ansicht wurden visuell geprüft. Keine Aussage über SMTP-Zustellung oder Production-Auth, solange diese nicht eingerichtet und getestet wurden.
 
-Dies ist eine **ungeschützte Demo**, nicht für vertrauliche Inhalte freigegeben. Der Avatar ist ein UI-Platzhalter, keine Sitzung. `/admin` enthält ausschließlich lesende Demo-Ansichten; keine Upload-, Freigabe-, Benutzer- oder schreibenden Backend-Aktionen. Es gibt keine Authentifizierung, keine echten Benutzer und keine produktiven SAP-Integrationen. Alle Codebeispiele sind ausdrücklich Demo, keine Hersteller-API. Die Auswahl „Zuletzt angesehen“ ist als Beispielauswahl gekennzeichnet. Status und Quellen sind synthetische Angaben, keine technische Freigabe. `robots: noindex` ist keine Zugriffssicherung.
+## Struktur
 
-## Vercel
+- `src/app/(private)`: dynamische geschützte Seiten mit gemeinsamer Shell.
+- `src/app/api`: Auth-Allowlist, rollenbasierte Mutationen, Suche, private Assets.
+- `src/lib/server`: ausschließlich serverseitige Auth-, Session-, Daten- und Mailfunktionen.
+- `src/components`: bestehendes Design und echte Auth-/Admin-/Editor-Formulare.
+- `src/lib/models.ts`: UI-Modelle; `src/lib/content.ts`: ausschließlich öffentliche Modulnamen und Link-Helfer.
+- `scripts/fixtures`: synthetische Inhalte, nur für den expliziten Seed, nicht für Client-Fallbacks.
+- `db/migrations`, `scripts`, `tests`: reproduzierbares Setup, kontrollierte Administration und Sicherheitsprüfungen.
 
-Repository `montyyyyyy/playbook` und Domain `playbook.mesta.digital` sind bereits mit Vercel verbunden. Production-Branch ist `main`; ein Push auf diesen Branch löst das konfigurierte Deployment aus. Framework: Next.js, Projektwurzel: Repository-Wurzel, Build: `npm run build`, Ausgabe automatisch. Der aktuelle Sprint benötigt keine Datenbankverbindung oder Secrets.
+## Bewusste Grenzen
 
-## Sprint 02
-
-Neon (PostgreSQL) ist als Datenbank festgelegt. Im nächsten Sprint Schema, Migrationen und serverseitigen Datenzugriff anbinden; die Verbindungsdaten ausschließlich als serverseitige Umgebungsvariablen verwalten. Die Auth-Lösung ist noch festzulegen. Einladungen, serverseitige Sitzungsprüfung, Rollen und Zugriffskontrollen sowie privaten Dateispeicher ergänzen. Erst nach Prüfung der Zugriffskontrollen echte Daten verwenden. Import, Anonymisierung und redaktionelle Freigabe als getrennte, autorisierte Schritte implementieren.
-
-
-## Neon- und Vercel-Anbindung
-
-Die Neon-CLI und Vercel-CLI sind lokal authentifiziert. Das Repository ist mit dem bestehenden Vercel-Projekt `playbook` in `dirks-projects-128f9cc0` verknüpft; `.vercel/` bleibt Git-ignoriert. Das Framework-Preset ist Next.js.
-
-Neon: Projekt `playbook` (`young-wave-31898083`), Branch `production`, Datenbank `neondb`. Eine gepoolte Verbindung ist in `.env.local` und als sensible `DATABASE_URL` für Vercel Production hinterlegt. Ein lesender Verbindungstest war erfolgreich. Zugangsdaten werden nicht versioniert. Preview und Development in Vercel sind noch nicht konfiguriert. Neue Vercel-Variablen gelten für nachfolgende Deployments.
-
-Die Anwendung nutzt weiterhin lokale Demo-Inhalte; es wurden noch keine Tabellen, Migrationen oder Datenbankabfragen in die Anwendung eingebaut. Authentifizierung und Autorisierung der Webanwendung sind unabhängig von der CLI-Anmeldung weiterhin offen.
+Kein MFA, keine Virenprüfung, keine echte SAP-Integration, keine vertraulichen Daten. CSP sperrt Frames/Objekte und fremde Quellen, erlaubt aber noch Inline-Skripte/-Styles für Next.js/Theme-Initialisierung; eine Nonce-basierte CSP ist ein weiterer Härtungsschritt. Die Auth-Datenbankrolle ist bewusst privilegiert für Identitäten; ihr Secret ist entsprechend sensibel. Owner-Zugriff kann RLS administrativ umgehen und bleibt ausschließlich beim Operator. Die Datenbank speichert kleine Assets; ein privater Objektspeicher wurde nicht provisioniert.

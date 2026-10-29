@@ -1,7 +1,10 @@
 "use client";
+import type { Content } from "@/lib/models";
+import type { Profile } from "@/lib/server/session";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ThemeProvider, useTheme } from "next-themes";
+import { useTheme } from "next-themes";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   BookOpen,
@@ -22,7 +25,7 @@ import {
   Moon,
   ArrowUpRight,
 } from "lucide-react";
-import { contents, hrefFor } from "@/lib/content";
+import { hrefFor } from "@/lib/content";
 const navigation = [
   { href: "/", label: "Home", icon: House },
   { href: "/knowledge", label: "Knowledge", icon: Library },
@@ -54,7 +57,13 @@ function ThemeSelect() {
     </div>
   );
 }
-function ShellInner({ children }: { children: React.ReactNode }) {
+function ShellInner({
+  children,
+  profile,
+}: {
+  children: React.ReactNode;
+  profile: Profile;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -80,15 +89,34 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (open) closeRef.current?.focus();
   }, [open]);
-  const matches = query.trim()
-    ? contents
-        .filter((c) =>
-          `${c.title} ${c.description} ${c.tags.join(" ")}`
-            .toLocaleLowerCase("de")
-            .includes(query.toLocaleLowerCase("de")),
-        )
-        .slice(0, 6)
-    : [];
+  const [matches, setMatches] = useState<Content[]>([]);
+  const [searchError, setSearchError] = useState("");
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      if (!query.trim()) return;
+      try {
+        const response = await fetch(
+          "/api/search?q=" + encodeURIComponent(query),
+          { signal: controller.signal },
+        );
+        if (!response.ok) {
+          setMatches([]);
+          setSearchError("Suche nicht verfügbar. Bitte Anmeldung prüfen.");
+          return;
+        }
+        setMatches(await response.json());
+        setSearchError("");
+      } catch {
+        if (!controller.signal.aborted)
+          setSearchError("Suche nicht verfügbar.");
+      }
+    }, 200);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [query]);
   return (
     <>
       <a className="skip-link" href="#main">
@@ -180,19 +208,22 @@ function ShellInner({ children }: { children: React.ReactNode }) {
             <Settings size={18} />
             Settings
           </Link>
-          <Link
-            href="/admin"
-            aria-current={pathname === "/admin" ? "page" : undefined}
-            onClick={() => setOpen(false)}
-          >
-            <ShieldCheck size={18} />
-            Admin<span className="mini-label">DEMO</span>
-          </Link>
+          {profile.role === "admin" && (
+            <Link
+              href="/admin"
+              aria-current={pathname === "/admin" ? "page" : undefined}
+              onClick={() => setOpen(false)}
+            >
+              <ShieldCheck size={18} />
+              Admin
+            </Link>
+          )}
         </nav>
         <div className="sidebar-footer">
-          <span className="avatar">D</span>
+          <span className="avatar">{profile.display_name.slice(0, 1)}</span>
           <div>
-            Dirk<small>Demo-Ansicht</small>
+            {profile.display_name}
+            <small>{profile.role}</small>
           </div>
           <span className="online-dot" />
         </div>
@@ -215,7 +246,11 @@ function ShellInner({ children }: { children: React.ReactNode }) {
               aria-label="Globale Suche"
               placeholder="Inhalte, Use Cases, Templates … suchen"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setMatches([]);
+                setSearchError("");
+              }}
             />
             {query ? (
               <button
@@ -249,22 +284,36 @@ function ShellInner({ children }: { children: React.ReactNode }) {
                     </Link>
                   ))
                 ) : (
-                  <p>
-                    Keine Inhalte gefunden. Versuche „Emarsys“ oder „Journey“.
-                  </p>
+                  <p>{searchError || "Keine Inhalte gefunden."}</p>
                 )}
               </div>
             )}
           </div>
           <div className="top-actions">
             <ThemeSelect />
+            <button
+              className="text-button"
+              onClick={async () => {
+                const r = await fetch("/api/auth/sign-out", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: "{}",
+                });
+                if (r.ok)
+                  window.location.replace(
+                    new URL("/login", window.location.origin).toString(),
+                  );
+              }}
+            >
+              Abmelden
+            </button>
             <span className="divider" />
             <span
               className="avatar"
-              title="Dirk · Demo-Profil"
-              aria-label="Dirk, Demo-Profil"
+              title={profile.display_name}
+              aria-label={profile.display_name}
             >
-              D
+              {profile.display_name.slice(0, 1)}
             </span>
           </div>
         </header>
@@ -276,23 +325,20 @@ function ShellInner({ children }: { children: React.ReactNode }) {
             CX Playbook{" "}
             <span className="muted">/ Dein Wissen. Dein Vorsprung.</span>
           </span>
-          <span>Synthetische Demo · Sprint 01</span>
+          <span>Privater Workspace</span>
         </footer>
       </div>
     </>
   );
 }
-export function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <ThemeProvider
-      attribute="class"
-      defaultTheme="system"
-      enableSystem
-      disableTransitionOnChange
-    >
-      <ShellInner>{children}</ShellInner>
-    </ThemeProvider>
-  );
+export function Shell({
+  children,
+  profile,
+}: {
+  children: React.ReactNode;
+  profile: Profile;
+}) {
+  return <ShellInner profile={profile}>{children}</ShellInner>;
 }
 export function Breadcrumbs({
   items,

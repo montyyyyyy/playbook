@@ -1,0 +1,6 @@
+.env*
+.bootstrap-admin-link.txt
+.recovery-admin-link.txt
+scripts/
+tests/
+db/

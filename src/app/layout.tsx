@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Shell } from "@/components/shell";
+import { Providers } from "@/components/providers";
 import "./globals.css";
 export const metadata: Metadata = {
   title: {
@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     template: "%s · CX Playbook",
   },
   description:
-    "Eine Knowledge- und Enablement-Plattform für SAP Customer Experience. Sprint 01 mit synthetischen Demo-Inhalten.",
+    "Eine Knowledge- und Enablement-Plattform für SAP Customer Experience. Privater Workspace.",
   robots: { index: false, follow: false },
 };
 export default function RootLayout({
@@ -18,7 +18,7 @@ export default function RootLayout({
   return (
     <html lang="de" suppressHydrationWarning>
       <body>
-        <Shell>{children}</Shell>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

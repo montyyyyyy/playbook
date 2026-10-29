@@ -6,3 +6,5 @@ out/
 *.tsbuildinfo
 
 .vercel
+.bootstrap-admin-link.txt
+.recovery-admin-link.txt

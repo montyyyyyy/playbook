@@ -14,7 +14,7 @@ import {
   ArrowRight,
   RotateCcw,
 } from "lucide-react";
-import { contents, hrefFor, sections } from "@/lib/content";
+import { hrefFor, sections } from "@/lib/content";
 import type { Content, Section } from "@/lib/models";
 import { Breadcrumbs } from "./shell";
 const icons = {
@@ -119,9 +119,11 @@ export function ContentCard({
 }
 export function Library({
   section,
+  contents,
   initialTechnology = "",
 }: {
   section: Section;
+  contents: Content[];
   initialTechnology?: string;
 }) {
   const [query, setQuery] = useState("");
