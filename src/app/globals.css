@@ -1718,7 +1718,7 @@ figcaption {
   color: var(--sand);
 }
 .auth-card {
-  width: 100%;
+  width: min(440px, calc(100vw - 40px));
   max-width: 440px;
   padding: 32px;
   border: 1px solid var(--border);
@@ -1830,7 +1830,19 @@ button:disabled {
     grid-template-columns: 1fr;
   }
   .auth-card {
+    width: min(440px, calc(100vw - 32px));
     padding: 25px;
+  }
+  .auth-page {
+    padding-inline: 16px;
+  }
+  .auth-page > .theme-options {
+    max-width: calc(100vw - 32px);
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+  .auth-page > .theme-options .button {
+    padding-inline: 12px;
   }
   .top-actions .text-button {
     font-size: 9px;
