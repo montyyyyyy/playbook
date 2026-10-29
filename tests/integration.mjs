@@ -14,6 +14,10 @@ const ids = [],
   inviteIds = [];
 const accounts = {};
 let passed = 0;
+// This suite runs only against the isolated development/test branch. Clear
+// persistent limiter state so interrupted or repeated runs stay deterministic.
+await db.query("DELETE FROM public.auth_rate_limit");
+await db.query("DELETE FROM private.request_limits");
 async function request(
   path,
   { method = "GET", body, cookie, requestOrigin = origin, headers = {} } = {},
@@ -520,6 +524,8 @@ try {
     `${passed} application integration checks passed against real Better Auth and Neon.`,
   );
 } finally {
+  await db.query("DELETE FROM public.auth_rate_limit");
+  await db.query("DELETE FROM private.request_limits");
   await db.query(
     "DELETE FROM public.audit_events WHERE actor_id=ANY($1::uuid[]) OR target_id=ANY($2::uuid[])",
     [ids, [...ids, ...contentIds, ...inviteIds]],

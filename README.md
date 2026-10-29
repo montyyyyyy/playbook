@@ -25,10 +25,10 @@ Für den ersten Administrator ist ein einmaliger Link für die vereinbarte E-Mai
 ## Neuinstallation / Migrationen
 
 1. Einen getrennten Neon-Branch und eine PostgreSQL-Datenbank verwenden. Die Migrationen erwarten eine leere Anwendungsdatenbank.
-2. `.env.example` nach `.env.local` kopieren und `MIGRATION_DATABASE_URL` auf die direkte **Owner-Verbindung des Zielbranches** setzen. `BETTER_AUTH_URL` passend zum Ziel festlegen.
+2. `.env.example` nach `.env.local` kopieren und `MIGRATION_DATABASE_URL` auf die direkte **Owner-Verbindung des Zielbranches** mit `sslmode=verify-full` setzen. `BETTER_AUTH_URL` passend zum Ziel festlegen.
 3. `npm run db:provision`: erstellt zufällige Zugangsdaten für `playbook_app` und `playbook_auth`, einen Auth-Secret und speichert sie ausschließlich lokal. Bestehende Rollen werden nicht still überschrieben.
 4. `npm run db:migrate`: führt versionierte SQL-Migrationen mit Lock und Prüfsummen aus. Kein automatisches Migrieren beim Serverstart oder Build.
-5. Optional ausschließlich in Entwicklung: `npm run db:seed -- --confirm-development`. Der wiederholbare Seed fügt 13 synthetische Inhalte und kleine private Demo-Dateien ein. Bestehende Inhalte werden nicht überschrieben. Der Operator nimmt während dieser expliziten Transaktion eine gesperrte Tabelle ohne Mutationstrigger in Betrieb; außerhalb des Seeds bleiben die Trigger aktiv.
+5. Optional ausschließlich in Entwicklung: `PLAYBOOK_ENVIRONMENT=development` setzen und `npm run db:seed -- --confirm-development` ausführen. Der Befehl verweigert Preview/Production sowie nicht-lokale Auth-Origins. Der wiederholbare Seed fügt 13 synthetische Inhalte und kleine private Demo-Dateien ein. Bestehende Inhalte werden nicht überschrieben. Der Operator nimmt während dieser expliziten Transaktion eine gesperrte Tabelle ohne Mutationstrigger in Betrieb; außerhalb des Seeds bleiben die Trigger aktiv.
 6. `npm run admin:bootstrap -- deine-admin-adresse@example.org`: erzeugt eine 48-Stunden-Einladung, nur solange kein Administrator existiert. Kein öffentlicher Bootstrap-Endpunkt und keine automatische Erhöhung des ersten Signups.
 7. Link aus `.bootstrap-admin-link.txt` öffnen und eigenes Passwort setzen. Danach wird die Einladung atomar verbraucht.
 
@@ -71,15 +71,28 @@ Vor einem **gesondert autorisierten** Deployment auf dem gewählten Zielbranch p
 
 | Variable                                                            | Wert                                                                         |
 | ------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `PLAYBOOK_ENVIRONMENT`                                              | `production`, `preview` oder lokal `development`                             |
 | `DATABASE_URL`                                                      | Gepoolte Verbindung mit Rolle `playbook_app`                                 |
 | `AUTH_DATABASE_URL`                                                 | Gepoolte Verbindung mit Rolle `playbook_auth`                                |
 | `BETTER_AUTH_SECRET`                                                | Zufälliges Secret, mindestens 32 Zeichen; pro Umgebung getrennt              |
 | `BETTER_AUTH_URL`                                                   | Production: `https://playbook.mesta.digital`; lokal: `http://localhost:3000` |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `MAIL_FROM` | Optional, nur für echten Mailversand                                         |
 
-**Die früher in Vercel hinterlegte Owner-`DATABASE_URL` muss für Sprint 02 ersetzt werden.** `MIGRATION_DATABASE_URL` gehört niemals in die Vercel-Runtime. `.env.local` und lokale Links sind auch durch `.vercelignore` ausgeschlossen. Keine `NEXT_PUBLIC_`-Secrets. Preview braucht einen eigenen Neon-Branch, ein eigenes Secret und einen festen vertrauenswürdigen Origin; keine pauschale `*.vercel.app`-Freigabe.
+**Die früher in Vercel hinterlegte Owner-`DATABASE_URL` muss für Sprint 02 ersetzt werden.** `MIGRATION_DATABASE_URL` gehört niemals in die Vercel-Runtime. `.env.local` und lokale Links sind auch durch `.vercelignore` ausgeschlossen. Keine `NEXT_PUBLIC_`-Secrets. Preview braucht einen eigenen Neon-Branch, ein eigenes Secret und einen festen vertrauenswürdigen Origin; keine pauschale `*.vercel.app`-Freigabe. Auf Vercel erzwingt die Anwendung HTTPS, die exakte Production-Domain und eine von Production getrennte Preview-Auth-URL.
 
 Login: `/login`; Einladung: `/accept-invite`; Passwortwechsel: `/reset-password`. Kein OAuth-/PKCE-Callback notwendig, da E-Mail/Passwort und serverseitig geprüfte Einmal-Links verwendet werden. Production-Migration, neue Runtime-Variablen und Sprint-02-Deployment wurden noch nicht durchgeführt. Es gibt keine automatische Veröffentlichung beim Build.
+
+## Production-Runbook und Rollback
+
+Alle folgenden externen Schritte benötigen eine gesonderte Freigabe. Keine Secrets in Shell-Historie, Tickets oder Chat kopieren; Verbindungswerte werden direkt über Neon/Vercel CLI oder deren geschützte Oberflächen gesetzt.
+
+1. Das bestehende Sprint-01-Deployment und seine Deployment-ID als App-Rollback beibehalten. Unmittelbar vor der ersten Production-Migration zusätzlich einen Neon-Rollback-Branch vom unveränderten Production-Branch erstellen.
+2. Einen eigenen Neon-Preview-Branch erstellen, dort `db:provision` und `db:migrate`, aber niemals `db:seed`, ausführen. Preview erhält eigene Runtime-Zugänge, eigenes Auth-Secret, `PLAYBOOK_ENVIRONMENT=preview` und einen festen HTTPS-Origin.
+3. Den Feature-Branch pushen und das isolierte Preview prüfen: Login, Admin-Bootstrap, Viewer/Editor/Admin, direkte API-/Asset-Ablehnung ohne Sitzung sowie Logs. Keine Production-Variable für Preview freigeben.
+4. Für Production eine separate, Git-ignorierte `.env.production.local` mit `PLAYBOOK_ENVIRONMENT=production`, direkter Owner-`MIGRATION_DATABASE_URL`, den beiden gepoolten Runtime-URLs, Production-Auth-Secret und exakter Production-URL vorbereiten. Bei jedem Operator-Befehl `PLAYBOOK_ENV_FILE=.env.production.local` setzen; `.env.local` bleibt Development. Danach `npm run db:provision`, `npm run db:migrate` und `npm run production:preflight` ausführen. Der Preflight prüft Origin, Secret-Länge, gepoolte Runtime-/direkte Migration-Verbindungen, Rollenprivilegien, Migrationsprüfsummen und Abwesenheit der synthetischen Development-Fixtures.
+5. In Vercel Production nur `PLAYBOOK_ENVIRONMENT`, `DATABASE_URL`, `AUTH_DATABASE_URL`, `BETTER_AUTH_SECRET` und `BETTER_AUTH_URL` setzen. Die Owner-Verbindung bleibt lokal beim Operator. Danach über den vorgesehenen Production-Branch deployen, den ersten Admin per Operator-Skript einladen und die negativen Zugriffstests wiederholen.
+
+App-Rollback: Domain/Alias auf das erhaltene Sprint-01-Deployment zurücksetzen. Dieses Deployment liest keine Sprint-02-Datenbankdaten; die additiven Tabellen können zunächst unverändert bleiben. Das vermeidet Datenverlust. Ein Datenbank-Restore oder Umschalten auf den Rollback-Branch ist nur vor produktiven Benutzeränderungen oder nach gesonderter Datenprüfung zulässig, da spätere Einladungen, Konten und Inhalte sonst verloren gingen. Bereits angewendete Migrationen werden nicht durch ungeprüfte Down-Skripte rückgängig gemacht; nach produktiver Nutzung gilt grundsätzlich Fix-forward.
 
 ## Prüfungen
 

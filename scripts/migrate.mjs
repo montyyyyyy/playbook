@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 import pg from "pg";
-process.loadEnvFile(".env.local");
+process.loadEnvFile(process.env.PLAYBOOK_ENV_FILE ?? ".env.local");
 if (!process.env.MIGRATION_DATABASE_URL)
   throw new Error("MIGRATION_DATABASE_URL missing");
 const db = new pg.Client({

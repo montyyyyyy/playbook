@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import pg from "pg";
-process.loadEnvFile(".env.local");
+process.loadEnvFile(process.env.PLAYBOOK_ENV_FILE ?? ".env.local");
 const email = process.argv[2];
 if (!email) throw new Error("Usage: npm run admin:recover -- email");
 const db = new pg.Client({

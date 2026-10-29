@@ -4,12 +4,28 @@ import { authPool, required } from "./db";
 import { sendAccountMail } from "./mail";
 function createAuth() {
   const baseURL = required("BETTER_AUTH_URL");
+  const origin = new URL(baseURL).origin;
+  if (process.env.VERCEL_ENV === "production") {
+    if (origin !== "https://playbook.mesta.digital")
+      throw new Error(
+        "Setup erforderlich: BETTER_AUTH_URL stimmt nicht mit der Production-Domain überein.",
+      );
+  } else if (
+    process.env.VERCEL_ENV === "preview" &&
+    origin === "https://playbook.mesta.digital"
+  ) {
+    throw new Error(
+      "Setup erforderlich: Preview darf nicht den Production-Auth-Origin verwenden.",
+    );
+  }
+  if (process.env.VERCEL_ENV && !baseURL.startsWith("https://"))
+    throw new Error("Setup erforderlich: Vercel-Auth benötigt HTTPS.");
   return betterAuth({
     appName: "CX Playbook",
     baseURL,
     secret: required("BETTER_AUTH_SECRET"),
     database: authPool(),
-    trustedOrigins: [new URL(baseURL).origin],
+    trustedOrigins: [origin],
     user: { modelName: "auth_user" },
     account: { modelName: "auth_account", accountLinking: { enabled: false } },
     verification: { modelName: "auth_verification" },

@@ -3,9 +3,19 @@ import { basename } from "node:path";
 import { createHash } from "node:crypto";
 import pg from "pg";
 import { contents, demoSnippet } from "./fixtures/content";
-process.loadEnvFile(".env.local");
+process.loadEnvFile(process.env.PLAYBOOK_ENV_FILE ?? ".env.local");
 if (!process.argv.includes("--confirm-development"))
   throw new Error("Use --confirm-development on a development database only.");
+if (process.env.PLAYBOOK_ENVIRONMENT !== "development")
+  throw new Error(
+    "PLAYBOOK_ENVIRONMENT must be development. Production and preview databases cannot be seeded.",
+  );
+if (
+  !["http://localhost:3000", "http://127.0.0.1:3000"].includes(
+    process.env.BETTER_AUTH_URL ?? "",
+  )
+)
+  throw new Error("Development seed requires a local BETTER_AUTH_URL.");
 const db = new pg.Client({
   connectionString: process.env.MIGRATION_DATABASE_URL,
 });

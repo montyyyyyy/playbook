@@ -1,7 +1,8 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import pg from "pg";
-process.loadEnvFile(".env.local");
+const envFile = process.env.PLAYBOOK_ENV_FILE ?? ".env.local";
+process.loadEnvFile(envFile);
 const owner = process.env.MIGRATION_DATABASE_URL;
 if (!owner) throw new Error("MIGRATION_DATABASE_URL missing");
 const client = new pg.Client({ connectionString: owner });
@@ -41,7 +42,7 @@ try {
     url.hostname = url.hostname.replace(/(?<!-pooler)\.c-/, "-pooler.c-");
     urls[role] = url.toString();
   }
-  const existing = readFileSync(".env.local", "utf8")
+  const existing = readFileSync(envFile, "utf8")
     .split(/\r?\n/)
     .filter(
       (line) =>
@@ -49,7 +50,7 @@ try {
     )
     .join("\n");
   writeFileSync(
-    ".env.local",
+    envFile,
     existing +
       "\nDATABASE_URL=" +
       urls.playbook_app +
@@ -63,7 +64,7 @@ try {
   );
   await client.query("COMMIT");
   console.log(
-    "Restricted roles provisioned; credentials saved only in ignored .env.local.",
+    "Restricted roles provisioned; credentials saved only in the selected ignored environment file.",
   );
 } catch (error) {
   await client.query("ROLLBACK");
